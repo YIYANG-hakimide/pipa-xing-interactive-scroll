@@ -1,4 +1,5 @@
 import type { StringSimulation } from "../physics/StringSimulation";
+import { publicAssetUrl } from "../assets/publicAssetUrl";
 import { GlyphCache } from "./GlyphCache";
 
 export interface StageInteractionState {
@@ -50,7 +51,14 @@ export class StageRenderer {
       : "white";
     this.canvas.dataset.inkMode = this.inkMode;
     this.handscroll.decoding = "async";
-    this.handscroll.src = "/assets/images/pipa-xing-gongbi-handscroll-v1.png";
+    this.handscroll.addEventListener("load", () => {
+      this.canvas.dataset.backgroundImageLoaded = "true";
+    }, { once: true });
+    this.handscroll.addEventListener("error", () => {
+      this.canvas.dataset.backgroundImageLoaded = "false";
+    }, { once: true });
+    this.handscroll.src = publicAssetUrl("assets/images/pipa-xing-gongbi-handscroll-v1.png");
+    this.canvas.dataset.backgroundImageUrl = this.handscroll.src;
   }
 
   resize(width: number, height: number, dpr: number): void {

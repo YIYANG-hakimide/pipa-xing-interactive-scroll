@@ -86,7 +86,7 @@ export class PoemStage {
     this.simulation = new StringSimulation(this.source, this.simulationOptions());
     this.bind();
     this.resize();
-    this.setAutoPlaying(false);
+    this.setAutoPlaying(!this.reducedMotion);
     this.raf = requestAnimationFrame(this.loop);
   }
 
