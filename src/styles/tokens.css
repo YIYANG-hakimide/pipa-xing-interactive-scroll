@@ -1,0 +1,19 @@
+@font-face {
+  font-family: "Long Cang";
+  src: url("/assets/fonts/LongCang-Regular.ttf") format("truetype");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+:root {
+  color-scheme: dark;
+  --color-background: #061118;
+  --color-foreground: #ead9b5;
+  --color-muted: rgba(226, 212, 179, 0.56);
+  --color-gold: #d4a75d;
+  --color-line: rgba(224, 199, 147, 0.23);
+  --font-content: "Kaiti SC", "STKaiti", "KaiTi", "Long Cang", serif;
+  --font-ui: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
