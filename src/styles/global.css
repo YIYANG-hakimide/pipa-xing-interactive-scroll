@@ -439,6 +439,9 @@ button {
   --intro-x: 0px;
   --intro-alpha: 1;
   --intro-blur: 0px;
+  --intro-copy-alpha: 1;
+  --intro-composition-x: 0px;
+  --intro-title-y: 0px;
   position: absolute;
   z-index: 8;
   top: 50%;
@@ -461,22 +464,29 @@ button {
   display: flex;
   align-items: center;
   gap: 30px;
+  color: #ead6a9;
+  opacity: var(--intro-copy-alpha);
+  transform: translateX(var(--intro-composition-x));
+  will-change: opacity, transform;
 }
 
 .intro h2 {
   margin: 0;
-  color: #f0e7d6;
-  font-family: "Kaiti SC", "STKaiti", "KaiTi", serif;
-  font-size: clamp(86px, 10.5vw, 146px);
+  color: #ead6a9;
+  font-family: var(--font-content);
+  font-size: clamp(116px, 13vw, 184px);
   font-weight: 400;
-  line-height: 0.94;
-  letter-spacing: 0.04em;
+  line-height: 0.88;
+  letter-spacing: -0.08em;
   writing-mode: vertical-rl;
   white-space: nowrap;
   text-shadow:
-    1px 2px 0 rgba(71, 51, 29, 0.72),
-    3px 4px 0 rgba(8, 12, 13, 0.78);
-  -webkit-text-stroke: 0.3px rgba(246, 237, 218, 0.62);
+    1px 1px 0 rgba(147, 106, 55, 0.68),
+    3px 4px 0 rgba(18, 12, 8, 0.82),
+    0 14px 40px rgba(0, 0, 0, 0.48);
+  -webkit-text-stroke: 0.6px rgba(234, 214, 169, 0.62);
+  transform: translateY(var(--intro-title-y));
+  will-change: transform;
 }
 
 .intro__byline {

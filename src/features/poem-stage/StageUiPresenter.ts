@@ -1,4 +1,10 @@
 import type { PoemColumn, PoemStageElements } from "./types";
+import {
+  INTRO_EXIT_END,
+  clamp01,
+  easeOutCubic,
+  introExitProgress
+} from "./stageTransitions";
 
 interface StageUiState {
   progress: number;
@@ -21,21 +27,29 @@ export class StageUiPresenter {
   }
 
   update(state: StageUiState): void {
-    const introProgress = Math.max(
-      0,
-      Math.min(1, state.offset / Math.max(1, state.introDistance))
-    );
-    const introShift = state.reducedMotion ? 0 : introProgress * state.width * 0.62;
+    const introProgress = clamp01(state.offset / Math.max(1, state.introDistance));
+    const introExit = introExitProgress(introProgress);
+    const easedIntroExit = easeOutCubic(introExit);
+    const introShift = state.reducedMotion ? 0 : easedIntroExit * state.width * 0.075;
     this.elements.intro.style.setProperty("--intro-x", `${introShift}px`);
     this.elements.intro.style.setProperty(
       "--intro-alpha",
-      String(1 - Math.max(0, (introProgress - 0.18) / 0.82))
+      String(1 - easedIntroExit)
     );
     this.elements.intro.style.setProperty(
       "--intro-blur",
-      `${state.reducedMotion ? 0 : introProgress * 1.2}px`
+      `${state.reducedMotion ? 0 : easedIntroExit * 1.8}px`
     );
-    this.elements.intro.style.visibility = introProgress > 0.995 ? "hidden" : "visible";
+    this.elements.intro.style.setProperty("--intro-copy-alpha", String(1 - introExit));
+    this.elements.intro.style.setProperty(
+      "--intro-composition-x",
+      `${state.reducedMotion ? 0 : easedIntroExit * 24}px`
+    );
+    this.elements.intro.style.setProperty(
+      "--intro-title-y",
+      `${state.reducedMotion ? 0 : easedIntroExit * -28}px`
+    );
+    this.elements.intro.style.visibility = introExit > 0.995 ? "hidden" : "visible";
 
     const progressLabel = this.progressLabel(state);
     const progressPercent = Math.round(state.progress * 100);
@@ -75,7 +89,7 @@ export class StageUiPresenter {
     const endingVisible = state.endingProgress > 0;
     this.elements.ending.classList.toggle("is-visible", endingVisible);
     this.elements.ending.setAttribute("aria-hidden", String(!endingVisible));
-    this.experience.classList.toggle("is-reading", introProgress > 0.86);
+    this.experience.classList.toggle("is-reading", introExit > 0.78);
     this.experience.classList.toggle("is-ending", state.endingProgress > 0.02);
     this.experience.classList.toggle("is-reduced-motion", state.reducedMotion);
     this.experience.style.setProperty("--reading-progress", String(state.progress));
@@ -85,7 +99,7 @@ export class StageUiPresenter {
   }
 
   private progressLabel(state: StageUiState): string {
-    if (state.offset < state.introDistance * 0.82) return "卷首";
+    if (state.offset < state.introDistance * INTRO_EXIT_END) return "卷首";
     if (state.offset > state.readingEndOffset + state.endingDistance * 0.45) return "曲终";
     const readingProgress = Math.max(
       0,
@@ -105,7 +119,7 @@ export class StageUiPresenter {
       this.setSection("ending", "曲终", state.reducedMotion);
       return;
     }
-    if (state.offset < state.introDistance * 0.78) {
+    if (state.offset < state.introDistance * INTRO_EXIT_END) {
       this.setSection("intro", "卷首", state.reducedMotion);
       return;
     }
@@ -139,4 +153,3 @@ export class StageUiPresenter {
     );
   }
 }
-

@@ -11,6 +11,13 @@ import { pipaXing } from "../../content/works/pipa-xing";
 import { stringMidiForColumn } from "../../themes/pipa-xing/melody";
 import { buildPoemColumns } from "./poemColumns";
 import { calculateStageMetrics } from "./stageMetrics";
+import {
+  OPENING_CADENCE_RESET,
+  OPENING_CADENCE_TRIGGER,
+  OPENING_CADENCE_WINDOW_END,
+  clamp01,
+  introExitProgress
+} from "./stageTransitions";
 import { StageUiPresenter } from "./StageUiPresenter";
 import { StageNavigation } from "./StageNavigation";
 import type { PoemColumn, PoemStageElements } from "./types";
@@ -486,12 +493,18 @@ export class PoemStage {
       reducedMotion: this.reducedMotion
     });
 
-    const introProgress = Math.max(
-      0,
+    const introProgress = clamp01(
       this.navigation.viewport.offset / Math.max(1, this.introDistance)
     );
-    if (introProgress > 0.7 && introProgress < 1.08) this.tryPlayOpeningCadence();
-    if (introProgress < 0.16) this.openingSoundPlayed = false;
+    const introTransition = introExitProgress(introProgress);
+    this.canvas.dataset.introTransition = introTransition.toFixed(3);
+    if (
+      introProgress >= OPENING_CADENCE_TRIGGER &&
+      introProgress < OPENING_CADENCE_WINDOW_END
+    ) {
+      this.tryPlayOpeningCadence();
+    }
+    if (introProgress < OPENING_CADENCE_RESET) this.openingSoundPlayed = false;
 
     if (endingProgress > 0.72 && !this.endingSoundPlayed) {
       this.endingSoundPlayed = true;
