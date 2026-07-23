@@ -30,7 +30,7 @@ export class StageUiPresenter {
     const introProgress = clamp01(state.offset / Math.max(1, state.introDistance));
     const introExit = introExitProgress(introProgress);
     const easedIntroExit = easeOutCubic(introExit);
-    const introShift = state.reducedMotion ? 0 : easedIntroExit * state.width * 0.075;
+    const introShift = state.reducedMotion ? 0 : easedIntroExit * state.width * -0.075;
     this.elements.intro.style.setProperty("--intro-x", `${introShift}px`);
     this.elements.intro.style.setProperty(
       "--intro-alpha",

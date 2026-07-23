@@ -12,6 +12,7 @@ import { stringMidiForColumn } from "../../themes/pipa-xing/melody";
 import { buildPoemColumns } from "./poemColumns";
 import { calculateStageMetrics } from "./stageMetrics";
 import {
+  INTRO_EXIT_END,
   OPENING_CADENCE_RESET,
   OPENING_CADENCE_TRIGGER,
   OPENING_CADENCE_WINDOW_END,
@@ -49,6 +50,8 @@ export class PoemStage {
   private endingSoundPlayed = false;
   private endingAudioTriggerCount = 0;
   private audioUnlocked = false;
+  private initialIntroPlaying = false;
+  private initialPlaybackCancelled = false;
   private autoPlaying = false;
   private lastRippleAt = 0;
   private source: PoemColumn[];
@@ -88,7 +91,7 @@ export class PoemStage {
     this.simulation = new StringSimulation(this.source, this.simulationOptions());
     this.bind();
     this.resize();
-    this.setAutoPlaying(false);
+    this.syncPlaybackButton();
     void this.startInitialPlayback();
     this.raf = requestAnimationFrame(this.loop);
   }
@@ -96,8 +99,12 @@ export class PoemStage {
   private async startInitialPlayback(): Promise<void> {
     const backgroundLoaded = await this.renderer.backgroundReady;
     this.canvas.dataset.initialBackgroundReady = String(backgroundLoaded);
-    if (!this.reducedMotion && this.navigation.viewport.offset < 1) {
-      this.setAutoPlaying(true);
+    if (
+      !this.reducedMotion &&
+      !this.initialPlaybackCancelled &&
+      this.navigation.viewport.offset < 1
+    ) {
+      this.setInitialIntroPlaying(true);
     }
   }
 
@@ -166,12 +173,29 @@ export class PoemStage {
   private loop = (time: number): void => {
     const dt = Math.min(32, time - this.lastFrame);
     this.lastFrame = time;
-    if (this.autoPlaying) {
+    if (this.initialIntroPlaying) {
+      const introTarget = this.initialIntroTarget;
+      const duration = this.width < 720 ? 1.45 : 1.7;
+      const introSpeed = introTarget / duration;
+      this.navigation.viewport.setTarget(
+        Math.min(introTarget, this.navigation.viewport.target + introSpeed * dt / 1000),
+        this.reducedMotion
+      );
+    } else if (this.autoPlaying) {
       const speed = this.width < 720 ? 50 : 64;
       const completed = this.navigation.advanceAutomatically(speed * dt / 1000);
       if (completed) this.setAutoPlaying(false);
     }
     this.navigation.update(dt, time);
+    if (
+      this.initialIntroPlaying &&
+      this.navigation.viewport.target >= this.initialIntroTarget - 0.5 &&
+      this.navigation.viewport.offset >= this.initialIntroTarget - 1
+    ) {
+      this.navigation.viewport.setTarget(this.initialIntroTarget, true);
+      this.setInitialIntroPlaying(false);
+      this.setAutoPlaying(true);
+    }
     const visible = this.visibleWorldRange(260);
     this.simulation.step(dt, visible);
     this.renderer.render(this.simulation, {
@@ -228,17 +252,48 @@ export class PoemStage {
   };
 
   private onPlaybackClick = async (): Promise<void> => {
-    await this.ensureAudio();
-    if (this.autoPlaying) {
-      this.setAutoPlaying(false);
+    if (this.initialIntroPlaying || this.autoPlaying) {
+      this.stopForManualControl();
       return;
     }
+    await this.ensureAudio();
     if (this.navigation.atEnd) this.navigation.rewind(true);
+    this.initialPlaybackCancelled = false;
+    if (this.navigation.viewport.offset < this.initialIntroTarget - 1) {
+      if (this.reducedMotion) {
+        this.navigation.viewport.setTarget(this.initialIntroTarget, true);
+        this.setAutoPlaying(true);
+      } else {
+        this.setInitialIntroPlaying(true);
+      }
+      return;
+    }
     this.setAutoPlaying(true);
   };
 
   private setAutoPlaying(playing: boolean): void {
     this.autoPlaying = playing;
+    this.syncPlaybackButton();
+  }
+
+  private setInitialIntroPlaying(playing: boolean): void {
+    this.initialIntroPlaying = playing;
+    this.canvas.dataset.initialIntroPlaying = String(playing);
+    this.syncPlaybackButton();
+  }
+
+  private stopForManualControl(): void {
+    this.initialPlaybackCancelled = true;
+    this.initialIntroPlaying = false;
+    this.autoPlaying = false;
+    this.navigation.stopEdge();
+    this.canvas.dataset.initialIntroPlaying = "false";
+    this.canvas.dataset.manualPlaybackStop = "true";
+    this.syncPlaybackButton();
+  }
+
+  private syncPlaybackButton(): void {
+    const playing = this.initialIntroPlaying || this.autoPlaying;
     this.elements.playback.setAttribute("aria-pressed", String(playing));
     this.elements.playback.setAttribute(
       "aria-label",
@@ -246,7 +301,8 @@ export class PoemStage {
     );
     const label = this.elements.playback.querySelector("span");
     if (label) label.textContent = playing ? "暂停" : "播放";
-    this.canvas.dataset.autoPlaying = String(playing);
+    this.canvas.dataset.autoPlaying = String(this.autoPlaying);
+    this.canvas.dataset.playbackActive = String(playing);
   }
 
   private async ensureAudio(): Promise<boolean> {
@@ -280,6 +336,7 @@ export class PoemStage {
     this.canvas.dataset.reducedMotion = String(this.reducedMotion);
     this.navigation.setReducedMotion(this.reducedMotion);
     if (this.reducedMotion) {
+      if (this.initialIntroPlaying || this.autoPlaying) this.stopForManualControl();
       this.navigation.stopEdge();
       this.renderer.clearRipples();
     }
@@ -287,7 +344,7 @@ export class PoemStage {
 
   private onPointerDown = (event: PointerEvent): void => {
     if (!this.enabled) return;
-    this.navigation.stopEdge();
+    this.stopForManualControl();
     this.interaction.pressing = true;
     this.elements.cursor.classList.add("is-pressing");
     void this.ensureAudio();
@@ -334,11 +391,19 @@ export class PoemStage {
     this.interaction.active = insideViewport && !overUi;
     this.updateCursor(event.clientX, event.clientY, velocityX, velocityY, speed);
 
-    if (overUi || this.autoPlaying) this.navigation.stopEdge();
-    else this.navigation.updateEdge(
-      event.clientX,
-      this.interaction.pressing || Boolean(this.grabbed)
-    );
+    const edgeZone = this.width < 720 ? 58 : 82;
+    const overEdge = event.clientX < edgeZone || event.clientX > this.width - edgeZone;
+    if (overUi) {
+      this.navigation.stopEdge();
+    } else {
+      if (overEdge && (this.initialIntroPlaying || this.autoPlaying)) {
+        this.stopForManualControl();
+      }
+      this.navigation.updateEdge(
+        event.clientX,
+        this.interaction.pressing || Boolean(this.grabbed)
+      );
+    }
 
     const worldX = this.toWorldX(event.clientX);
     if (
@@ -469,7 +534,7 @@ export class PoemStage {
 
   private onTimelinePointerDown = (event: PointerEvent): void => {
     event.preventDefault();
-    this.setAutoPlaying(false);
+    this.stopForManualControl();
     void this.ensureAudio();
     this.navigation.beginTimeline();
     this.elements.progress.setPointerCapture?.(event.pointerId);
@@ -501,7 +566,7 @@ export class PoemStage {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
 
     event.preventDefault();
-    this.setAutoPlaying(false);
+    this.stopForManualControl();
     void this.ensureAudio();
     this.canvas.dataset.lastInteraction = "keyboard";
     this.navigation.handleKey(event.key as "ArrowLeft" | "ArrowRight" | "Home" | "End");
@@ -583,6 +648,10 @@ export class PoemStage {
         (offset - this.readingEndOffset) / Math.max(1, this.endingDistance * 0.78)
       )
     );
+  }
+
+  private get initialIntroTarget(): number {
+    return this.introDistance * INTRO_EXIT_END;
   }
 
 }
