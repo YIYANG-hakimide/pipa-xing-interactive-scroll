@@ -86,8 +86,17 @@ export class PoemStage {
     this.simulation = new StringSimulation(this.source, this.simulationOptions());
     this.bind();
     this.resize();
-    this.setAutoPlaying(!this.reducedMotion);
+    this.setAutoPlaying(false);
+    void this.startInitialPlayback();
     this.raf = requestAnimationFrame(this.loop);
+  }
+
+  private async startInitialPlayback(): Promise<void> {
+    const backgroundLoaded = await this.renderer.backgroundReady;
+    this.canvas.dataset.initialBackgroundReady = String(backgroundLoaded);
+    if (!this.reducedMotion && this.navigation.viewport.offset < 1) {
+      this.setAutoPlaying(true);
+    }
   }
 
   destroy(): void {

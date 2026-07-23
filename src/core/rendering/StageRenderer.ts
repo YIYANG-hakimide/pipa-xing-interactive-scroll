@@ -36,6 +36,7 @@ interface WaterRipple {
 }
 
 export class StageRenderer {
+  readonly backgroundReady: Promise<boolean>;
   private context: CanvasRenderingContext2D;
   private glyphs = new GlyphCache();
   private handscroll = new Image();
@@ -51,12 +52,16 @@ export class StageRenderer {
       : "white";
     this.canvas.dataset.inkMode = this.inkMode;
     this.handscroll.decoding = "async";
-    this.handscroll.addEventListener("load", () => {
-      this.canvas.dataset.backgroundImageLoaded = "true";
-    }, { once: true });
-    this.handscroll.addEventListener("error", () => {
-      this.canvas.dataset.backgroundImageLoaded = "false";
-    }, { once: true });
+    this.backgroundReady = new Promise((resolve) => {
+      this.handscroll.addEventListener("load", () => {
+        this.canvas.dataset.backgroundImageLoaded = "true";
+        resolve(true);
+      }, { once: true });
+      this.handscroll.addEventListener("error", () => {
+        this.canvas.dataset.backgroundImageLoaded = "false";
+        resolve(false);
+      }, { once: true });
+    });
     this.handscroll.src = publicAssetUrl("assets/images/pipa-xing-gongbi-handscroll-v1.png");
     this.canvas.dataset.backgroundImageUrl = this.handscroll.src;
   }
