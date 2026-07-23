@@ -68,8 +68,8 @@ export class StageNavigation {
     }
     const edgeZone = this.width < 720 ? 58 : 82;
     let nextIntent: -1 | 0 | 1 = 0;
-    if (clientX < edgeZone) nextIntent = 1;
-    else if (clientX > this.width - edgeZone) nextIntent = -1;
+    if (clientX < edgeZone) nextIntent = -1;
+    else if (clientX > this.width - edgeZone) nextIntent = 1;
 
     if (nextIntent !== this.edgeIntent) {
       const previousIntent = this.edgeIntent;
@@ -88,7 +88,7 @@ export class StageNavigation {
       this.edgeIntentSince = performance.now();
     }
 
-    const label = nextIntent === 1 ? "left" : nextIntent === -1 ? "right" : "none";
+    const label = nextIntent === 1 ? "right" : nextIntent === -1 ? "left" : "none";
     this.dataset.edgeScroll = label;
     if (label !== "none") this.dataset.lastEdgeScroll = label;
   }
