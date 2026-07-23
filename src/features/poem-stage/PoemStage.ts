@@ -48,6 +48,7 @@ export class PoemStage {
   private openingAudioTriggerCount = 0;
   private endingSoundPlayed = false;
   private endingAudioTriggerCount = 0;
+  private audioUnlocked = false;
   private autoPlaying = false;
   private lastRippleAt = 0;
   private source: PoemColumn[];
@@ -83,6 +84,7 @@ export class PoemStage {
       content.scrollLines + content.endingLines === content.totalLines
     );
     this.canvas.dataset.reducedMotion = String(this.reducedMotion);
+    this.canvas.dataset.audioUnlocked = "false";
     this.simulation = new StringSimulation(this.source, this.simulationOptions());
     this.bind();
     this.resize();
@@ -217,17 +219,16 @@ export class PoemStage {
   }
 
   private onMuteClick = async (): Promise<void> => {
-    await this.audio.ensure();
+    if (!this.audioUnlocked) {
+      await this.ensureAudio();
+      return;
+    }
     this.audio.setMuted(!this.audio.muted);
-    const label = this.audio.muted ? "启声" : "静音";
-    this.elements.mute.setAttribute("aria-pressed", String(this.audio.muted));
-    this.elements.mute.setAttribute("aria-label", this.audio.muted ? "开启琵琶声音" : "静音琵琶声音");
-    const text = this.elements.mute.querySelector("span");
-    if (text) text.textContent = label;
+    this.syncSoundButton();
   };
 
   private onPlaybackClick = async (): Promise<void> => {
-    await this.audio.ensure();
+    await this.ensureAudio();
     if (this.autoPlaying) {
       this.setAutoPlaying(false);
       return;
@@ -248,6 +249,31 @@ export class PoemStage {
     this.canvas.dataset.autoPlaying = String(playing);
   }
 
+  private async ensureAudio(): Promise<boolean> {
+    try {
+      await this.audio.ensure();
+    } catch {
+      this.canvas.dataset.audioUnlocked = "false";
+      return false;
+    }
+    this.audioUnlocked = this.audio.state === "running";
+    this.canvas.dataset.audioUnlocked = String(this.audioUnlocked);
+    this.syncSoundButton();
+    return this.audioUnlocked;
+  }
+
+  private syncSoundButton(): void {
+    const needsSoundPermission = !this.audioUnlocked;
+    const label = needsSoundPermission || this.audio.muted ? "启声" : "静音";
+    this.elements.mute.setAttribute("aria-pressed", String(this.audio.muted));
+    this.elements.mute.setAttribute(
+      "aria-label",
+      needsSoundPermission || this.audio.muted ? "开启琵琶声音" : "静音琵琶声音"
+    );
+    const text = this.elements.mute.querySelector("span");
+    if (text) text.textContent = label;
+  }
+
   private onMotionPreferenceChange = (event: MediaQueryListEvent): void => {
     this.reducedMotion = event.matches ||
       new URLSearchParams(window.location.search).get("motion") === "reduce";
@@ -264,7 +290,7 @@ export class PoemStage {
     this.navigation.stopEdge();
     this.interaction.pressing = true;
     this.elements.cursor.classList.add("is-pressing");
-    void this.audio.ensure();
+    void this.ensureAudio();
     this.canvas.setPointerCapture?.(event.pointerId);
     const worldX = this.toWorldX(event.clientX);
     this.grabbed = this.simulation.grabParticle(
@@ -444,7 +470,7 @@ export class PoemStage {
   private onTimelinePointerDown = (event: PointerEvent): void => {
     event.preventDefault();
     this.setAutoPlaying(false);
-    void this.audio.ensure();
+    void this.ensureAudio();
     this.navigation.beginTimeline();
     this.elements.progress.setPointerCapture?.(event.pointerId);
     this.setTimelinePosition(event.clientX, false);
@@ -476,7 +502,7 @@ export class PoemStage {
 
     event.preventDefault();
     this.setAutoPlaying(false);
-    void this.audio.ensure();
+    void this.ensureAudio();
     this.canvas.dataset.lastInteraction = "keyboard";
     this.navigation.handleKey(event.key as "ArrowLeft" | "ArrowRight" | "Home" | "End");
   };

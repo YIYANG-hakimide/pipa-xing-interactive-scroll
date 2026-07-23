@@ -23,8 +23,8 @@ export function bootstrap(): void {
           <button class="playback-button" id="playbackButton" type="button" aria-pressed="false" aria-label="开始自动播放长卷">
             <i aria-hidden="true"></i><span>播放</span>
           </button>
-          <button class="sound-button" id="muteButton" type="button" aria-pressed="false" aria-label="静音琵琶声音">
-            <i aria-hidden="true"></i><span>静音</span>
+          <button class="sound-button" id="muteButton" type="button" aria-pressed="false" aria-label="开启琵琶声音">
+            <i aria-hidden="true"></i><span>启声</span>
           </button>
         </div>
       </header>
