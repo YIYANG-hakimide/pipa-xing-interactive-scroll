@@ -68,10 +68,15 @@ export class StageNavigation {
     }
     const edgeZone = this.width < 720 ? 58 : 82;
     let nextIntent: -1 | 0 | 1 = 0;
-    // 这里定义的是内容在屏幕上的运动方向：左缘向左，右缘向右。
-    // StageRenderer 将 cameraOffset 直接加到屏幕 x 坐标，因此不可反转符号。
-    if (clientX < edgeZone) nextIntent = -1;
-    else if (clientX > this.width - edgeZone) nextIntent = 1;
+    let edgeSide: "left" | "none" | "right" = "none";
+    // 阅读顺序从右向左展开：左缘继续进入正文，右缘返回卷首。
+    if (clientX < edgeZone) {
+      nextIntent = 1;
+      edgeSide = "left";
+    } else if (clientX > this.width - edgeZone) {
+      nextIntent = -1;
+      edgeSide = "right";
+    }
 
     if (nextIntent !== this.edgeIntent) {
       const previousIntent = this.edgeIntent;
@@ -90,9 +95,13 @@ export class StageNavigation {
       this.edgeIntentSince = performance.now();
     }
 
-    const label = nextIntent === 1 ? "right" : nextIntent === -1 ? "left" : "none";
-    this.dataset.edgeScroll = label;
-    if (label !== "none") this.dataset.lastEdgeScroll = label;
+    this.dataset.edgeScroll = edgeSide;
+    this.dataset.edgeReadingDirection = nextIntent === 1
+      ? "forward"
+      : nextIntent === -1
+        ? "backward"
+        : "none";
+    if (edgeSide !== "none") this.dataset.lastEdgeScroll = edgeSide;
   }
 
   stopEdge(): void {
@@ -102,6 +111,7 @@ export class StageNavigation {
     }
     this.edgeIntent = 0;
     this.dataset.edgeScroll = "none";
+    this.dataset.edgeReadingDirection = "none";
   }
 
   beginTimeline(): void {
