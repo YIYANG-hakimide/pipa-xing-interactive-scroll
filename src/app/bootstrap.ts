@@ -51,8 +51,8 @@ export function bootstrap(): void {
           <div class="intro__seal" aria-hidden="true">樂</div>
         </div>
         <div class="intro__direction" aria-hidden="true">
-          <svg viewBox="0 0 72 18"><path d="M2 9h67M59 1l10 8-10 8" /></svg>
-          <span>抵住右缘，或拖动下方卷轴</span>
+          <svg viewBox="0 0 72 18"><path d="M70 9H3M13 1 3 9l10 8" /></svg>
+          <span>向左拖动下方卷轴</span>
         </div>
       </section>
 

@@ -579,6 +579,7 @@ export class PoemStage {
   private updateUi(): void {
     const progress = this.navigation.viewport.progress;
     this.canvas.dataset.progress = progress.toFixed(4);
+    this.canvas.dataset.cameraOffset = this.cameraOffset.toFixed(2);
     const endingProgress = this.endingProgressFor(this.navigation.viewport.offset);
     this.canvas.dataset.endingTransition = endingProgress.toFixed(3);
     this.ui.update({

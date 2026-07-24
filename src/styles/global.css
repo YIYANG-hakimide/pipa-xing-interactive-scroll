@@ -531,17 +531,17 @@ button {
   stroke-width: 1;
   stroke-linecap: round;
   stroke-linejoin: round;
-  animation: guide-swipe-right 1.55s var(--ease-out) infinite;
+  animation: guide-swipe-left 1.55s var(--ease-out) infinite;
 }
 
-@keyframes guide-swipe-right {
+@keyframes guide-swipe-left {
   0%, 100% {
     opacity: 0.36;
-    transform: translateX(-14px);
+    transform: translateX(14px);
   }
   48% {
     opacity: 1;
-    transform: translateX(12px);
+    transform: translateX(-12px);
   }
 }
 

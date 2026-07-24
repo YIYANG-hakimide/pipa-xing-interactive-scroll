@@ -68,6 +68,8 @@ export class StageNavigation {
     }
     const edgeZone = this.width < 720 ? 58 : 82;
     let nextIntent: -1 | 0 | 1 = 0;
+    // 这里定义的是内容在屏幕上的运动方向：左缘向左，右缘向右。
+    // StageRenderer 将 cameraOffset 直接加到屏幕 x 坐标，因此不可反转符号。
     if (clientX < edgeZone) nextIntent = -1;
     else if (clientX > this.width - edgeZone) nextIntent = 1;
 
