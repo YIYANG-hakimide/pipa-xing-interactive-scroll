@@ -23,6 +23,12 @@ import { StageUiPresenter } from "./StageUiPresenter";
 import { StageNavigation } from "./StageNavigation";
 import type { PoemColumn, PoemStageElements } from "./types";
 
+interface OpeningStringMotion {
+  displacement: number;
+  velocity: number;
+  dragging: boolean;
+}
+
 export class PoemStage {
   private renderer: StageRenderer;
   private navigation: StageNavigation;
@@ -54,6 +60,9 @@ export class PoemStage {
   private openingGestureStartX = 0;
   private openingGestureLastX = 0;
   private openingStringsPlayed = new Set<number>();
+  private openingStringCenters: number[] = [];
+  private openingStringNodes: HTMLElement[] = [];
+  private openingStringMotions: OpeningStringMotion[] = [];
   private endingSoundPlayed = false;
   private endingAudioTriggerCount = 0;
   private audioUnlocked = false;
@@ -85,6 +94,14 @@ export class PoemStage {
     this.renderer = new StageRenderer(canvas);
     this.navigation = new StageNavigation(canvas.dataset);
     this.ui = new StageUiPresenter(elements, canvas);
+    this.openingStringNodes = [
+      ...elements.introStrings.querySelectorAll<HTMLElement>("[data-string]")
+    ];
+    this.openingStringMotions = this.openingStringNodes.map(() => ({
+      displacement: 0,
+      velocity: 0,
+      dragging: false
+    }));
     const content = buildPoemColumns(pipaXing);
     this.source = content.columns;
     this.canvas.dataset.columnCount = String(this.source.length);
@@ -199,6 +216,7 @@ export class PoemStage {
       const completed = this.navigation.advanceAutomatically(speed * dt / 1000);
       if (completed) this.setAutoPlaying(false);
     }
+    this.updateOpeningStringMotion(dt);
     this.navigation.update(dt, time);
     if (
       this.initialIntroPlaying &&
@@ -311,8 +329,15 @@ export class PoemStage {
     this.openingGestureStartX = event.clientX;
     this.openingGestureLastX = event.clientX;
     this.openingStringsPlayed.clear();
-    this.elements.introStrings.querySelectorAll("i").forEach((string) => {
+    const buttonRect = this.elements.introStrings.getBoundingClientRect();
+    const strings = this.openingStringElements();
+    this.openingStringCenters = strings.map(
+      (string) => buttonRect.left + string.offsetLeft + string.offsetWidth / 2
+    );
+    strings.forEach((string, index) => {
       string.classList.remove("is-plucked");
+      const motion = this.openingStringMotions[index];
+      motion.dragging = false;
     });
     this.elements.introStrings.setPointerCapture?.(event.pointerId);
     this.canvas.dataset.openingGestureDirection = "pending";
@@ -326,26 +351,37 @@ export class PoemStage {
     this.openingGestureLastX = event.clientX;
     if (event.clientX >= previousX) {
       this.canvas.dataset.openingGestureDirection = "wrong-way";
+      this.releaseOpeningStrings();
       return;
     }
 
     this.canvas.dataset.openingGestureDirection = "right-to-left";
-    const strings = [...this.elements.introStrings.querySelectorAll<HTMLElement>("i")];
+    const strings = this.openingStringElements();
+    const pointerDelta = event.clientX - previousX;
     for (const [index, string] of strings.entries()) {
+      const centerX = this.openingStringCenters[index];
+      const motion = this.openingStringMotions[index];
+      const distance = event.clientX - centerX;
+      motion.dragging = Math.abs(distance) < 30 && !this.openingStringsPlayed.has(index);
+      if (motion.dragging) {
+        motion.displacement = Math.max(-28, Math.min(20, distance * 0.82));
+        motion.velocity = pointerDelta * 0.72;
+      }
       if (this.openingStringsPlayed.has(index)) continue;
-      const rect = string.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
       if (centerX > previousX + 4 || centerX < event.clientX - 4) continue;
       this.openingStringsPlayed.add(index);
       string.classList.add("is-plucked");
+      motion.dragging = false;
+      motion.displacement = Math.min(-14, motion.displacement);
+      motion.velocity = Math.min(-5.5, pointerDelta * 1.35);
       const pan = this.panFor(centerX);
       void this.audio.strike(4 + index * 2, 0.78 + index * 0.05, true, -1, pan);
     }
     this.canvas.dataset.openingStringsPlayed = String(this.openingStringsPlayed.size);
 
     if (
-      this.openingStringsPlayed.size >= 3 &&
-      this.openingGestureStartX - event.clientX >= 34
+      this.openingStringsPlayed.size >= 1 &&
+      this.openingGestureStartX - event.clientX >= 18
     ) {
       this.finishOpeningGesture(event.pointerId);
       void this.beginOpeningPlayback("string-sweep");
@@ -361,9 +397,48 @@ export class PoemStage {
     if (!this.openingGestureActive) return;
     this.openingGestureActive = false;
     this.openingGesturePointer = -1;
+    this.releaseOpeningStrings();
     if (this.elements.introStrings.hasPointerCapture?.(pointerId)) {
       this.elements.introStrings.releasePointerCapture?.(pointerId);
     }
+  }
+
+  private openingStringElements(): HTMLElement[] {
+    return this.openingStringNodes;
+  }
+
+  private releaseOpeningStrings(): void {
+    this.openingStringMotions.forEach((motion) => {
+      motion.dragging = false;
+    });
+  }
+
+  private updateOpeningStringMotion(dt: number): void {
+    const frameScale = Math.min(1.8, Math.max(0.45, dt / 16.67));
+    const strings = this.openingStringElements();
+    let maximumDisplacement = 0;
+
+    strings.forEach((string, index) => {
+      const motion = this.openingStringMotions[index];
+      if (!motion.dragging) {
+        motion.velocity += -motion.displacement * 0.105 * frameScale;
+        motion.velocity *= Math.pow(0.82, frameScale);
+        motion.displacement += motion.velocity * frameScale;
+        if (Math.abs(motion.displacement) < 0.04 && Math.abs(motion.velocity) < 0.04) {
+          motion.displacement = 0;
+          motion.velocity = 0;
+        }
+      }
+
+      maximumDisplacement = Math.max(maximumDisplacement, Math.abs(motion.displacement));
+      string.style.setProperty("--string-shift", `${motion.displacement.toFixed(2)}px`);
+      string.style.setProperty(
+        "--string-tilt",
+        `${(motion.displacement * 0.115).toFixed(2)}deg`
+      );
+    });
+
+    this.canvas.dataset.openingStringDisplacement = maximumDisplacement.toFixed(2);
   }
 
   private async beginOpeningPlayback(source: "playback-button" | "string-sweep"): Promise<void> {
