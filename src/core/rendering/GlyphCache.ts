@@ -21,7 +21,7 @@ export class GlyphCache {
     const context = canvas.getContext("2d");
     if (!context) return canvas;
     context.scale(dpr, dpr);
-    context.font = `${fontSize}px "Kaiti SC", "STKaiti", "KaiTi", serif`;
+    context.font = `${fontSize}px "Long Cang Pipa", "Kaiti SC", "STKaiti", "KaiTi", serif`;
     context.textAlign = "center";
     context.textBaseline = "middle";
     const glyphX = size / 2;

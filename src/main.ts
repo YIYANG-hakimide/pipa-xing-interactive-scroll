@@ -1,4 +1,4 @@
 import "./styles/global.css";
 import { bootstrap } from "./app/bootstrap";
 
-void document.fonts.load('24px "Kaiti SC"').then(bootstrap);
+void document.fonts.load('24px "Long Cang Pipa"').then(bootstrap);
