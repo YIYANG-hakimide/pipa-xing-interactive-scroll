@@ -1,0 +1,12 @@
+.git
+.github
+.vercel
+node_modules
+dist
+work
+outputs
+docs
+scripts
+AGENTS.md
+README.md
+*.tsbuildinfo
