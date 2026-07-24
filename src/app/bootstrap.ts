@@ -68,8 +68,8 @@ export function bootstrap(): void {
           <div class="ending-page__seal" aria-hidden="true">白</div>
           <h2>曲终</h2>
           <div class="ending-page__verse" aria-label="座中泣下谁最多，江州司马青衫湿">
-            <p>座中泣下谁最多</p>
-            <p>江州司马青衫湿</p>
+            <p aria-hidden="true">座中泣下谁最多</p>
+            <p aria-hidden="true">江州司马青衫<span class="ending-page__wet">湿</span></p>
           </div>
           <small>唐 · 白居易　《琵琶行》</small>
         </div>
