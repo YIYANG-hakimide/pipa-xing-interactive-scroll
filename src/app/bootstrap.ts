@@ -65,7 +65,9 @@ export function bootstrap(): void {
 
       <section class="ending-page" id="endingPage" aria-hidden="true">
         <div class="ending-page__composition">
-          <div class="ending-page__seal" aria-hidden="true">白</div>
+          <div class="ending-page__seal" aria-hidden="true">
+            <span>白</span><span>居</span><span>易</span><span>印</span>
+          </div>
           <h2>曲终</h2>
           <div class="ending-page__verse" aria-label="座中泣下谁最多，江州司马青衫湿">
             <p aria-hidden="true">座中泣下谁最多</p>
