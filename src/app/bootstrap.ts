@@ -55,7 +55,6 @@ export function bootstrap(): void {
           <div class="intro__byline">
             <span>唐 · 白居易</span>
           </div>
-          <div class="intro__seal" aria-hidden="true">樂</div>
         </div>
         <div class="intro__direction" aria-hidden="true">
           <svg viewBox="0 0 72 18"><path d="M70 9H3M13 1 3 9l10 8" /></svg>

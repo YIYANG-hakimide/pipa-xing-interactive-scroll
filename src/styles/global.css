@@ -677,20 +677,6 @@ button {
   white-space: nowrap;
 }
 
-.intro__seal {
-  position: absolute;
-  right: 4px;
-  bottom: 8px;
-  display: grid;
-  place-items: center;
-  width: 31px;
-  height: 31px;
-  border: 1px solid rgba(190, 75, 52, 0.82);
-  color: #c15d46;
-  font-size: 16px;
-  transform: rotate(-4deg);
-}
-
 .intro__direction {
   display: flex;
   align-items: center;
