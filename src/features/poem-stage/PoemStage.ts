@@ -59,6 +59,7 @@ export class PoemStage {
   private openingGestureSuppressedPointer = -1;
   private openingGestureStartX = 0;
   private openingGestureLastX = 0;
+  private openingStringCandidate = -1;
   private openingStringsPlayed = new Set<number>();
   private openingStringCenters: number[] = [];
   private openingStringNodes: HTMLElement[] = [];
@@ -211,7 +212,7 @@ export class PoemStage {
     }
     if (this.initialIntroPlaying) {
       const introTarget = this.initialIntroTarget;
-      const duration = this.width < 720 ? 1.45 : 1.7;
+      const duration = this.width < 720 ? 1.85 : 2.15;
       const introSpeed = introTarget / duration;
       this.navigation.viewport.setTarget(
         Math.min(introTarget, this.navigation.viewport.target + introSpeed * dt / 1000),
@@ -340,6 +341,14 @@ export class PoemStage {
     this.openingStringCenters = strings.map(
       (string) => buttonRect.left + string.offsetLeft + string.offsetWidth / 2
     );
+    this.openingStringCandidate = this.openingStringCenters.reduce(
+      (nearestIndex, centerX, index) =>
+        Math.abs(event.clientX - centerX) <
+        Math.abs(event.clientX - this.openingStringCenters[nearestIndex])
+          ? index
+          : nearestIndex,
+      0
+    );
     strings.forEach((string, index) => {
       string.classList.remove("is-plucked");
       const motion = this.openingStringMotions[index];
@@ -347,6 +356,7 @@ export class PoemStage {
     });
     this.elements.introStrings.setPointerCapture?.(event.pointerId);
     this.canvas.dataset.openingGestureDirection = "pending";
+    this.canvas.dataset.openingStringCandidate = String(this.openingStringCandidate);
     void this.ensureAudio();
   };
 
@@ -364,30 +374,34 @@ export class PoemStage {
     this.canvas.dataset.openingGestureDirection = "right-to-left";
     const strings = this.openingStringElements();
     const pointerDelta = event.clientX - previousX;
-    for (const [index, string] of strings.entries()) {
+    const gestureDistance = this.openingGestureStartX - event.clientX;
+    for (const [index] of strings.entries()) {
       const centerX = this.openingStringCenters[index];
       const motion = this.openingStringMotions[index];
+      const isCandidate = index === this.openingStringCandidate;
       const distance = event.clientX - centerX;
-      motion.dragging = Math.abs(distance) < 30 && !this.openingStringsPlayed.has(index);
+      motion.dragging = !this.openingStringsPlayed.has(index) && (
+        isCandidate ? gestureDistance > 0 : Math.abs(distance) < 30
+      );
       if (motion.dragging) {
-        motion.displacement = Math.max(-28, Math.min(20, distance * 0.82));
-        motion.velocity = pointerDelta * 0.72;
+        motion.displacement = isCandidate
+          ? Math.max(-44, -gestureDistance * 0.9)
+          : Math.max(-36, Math.min(26, distance * 0.9));
+        motion.velocity = pointerDelta * 0.9;
       }
       if (this.openingStringsPlayed.has(index)) continue;
+      if (isCandidate && gestureDistance >= 10) {
+        this.pluckOpeningString(index, pointerDelta, centerX);
+        continue;
+      }
       if (centerX > previousX + 4 || centerX < event.clientX - 4) continue;
-      this.openingStringsPlayed.add(index);
-      string.classList.add("is-plucked");
-      motion.dragging = false;
-      motion.displacement = Math.min(-14, motion.displacement);
-      motion.velocity = Math.min(-5.5, pointerDelta * 1.35);
-      const pan = this.panFor(centerX);
-      void this.audio.strike(4 + index * 2, 0.78 + index * 0.05, true, -1, pan);
+      this.pluckOpeningString(index, pointerDelta, centerX);
     }
     this.canvas.dataset.openingStringsPlayed = String(this.openingStringsPlayed.size);
 
     if (
       this.openingStringsPlayed.size >= 1 &&
-      this.openingGestureStartX - event.clientX >= 18
+      gestureDistance >= 10
     ) {
       this.finishOpeningGesture(event.pointerId);
       void this.beginOpeningPlayback("string-sweep");
@@ -409,6 +423,20 @@ export class PoemStage {
     }
   }
 
+  private pluckOpeningString(index: number, pointerDelta: number, centerX: number): void {
+    if (this.openingStringsPlayed.has(index)) return;
+    this.openingStringsPlayed.add(index);
+    this.openingStringNodes[index]?.classList.add("is-plucked");
+    const motion = this.openingStringMotions[index];
+    if (motion) {
+      motion.dragging = false;
+      motion.displacement = Math.min(-24, motion.displacement);
+      motion.velocity = Math.min(-8.5, pointerDelta * 1.55);
+    }
+    const pan = this.panFor(centerX);
+    void this.audio.strike(4 + index * 2, 0.82 + index * 0.05, true, -1, pan);
+  }
+
   private openingStringElements(): HTMLElement[] {
     return this.openingStringNodes;
   }
@@ -427,8 +455,8 @@ export class PoemStage {
     strings.forEach((string, index) => {
       const motion = this.openingStringMotions[index];
       if (!motion.dragging) {
-        motion.velocity += -motion.displacement * 0.105 * frameScale;
-        motion.velocity *= Math.pow(0.82, frameScale);
+        motion.velocity += -motion.displacement * 0.072 * frameScale;
+        motion.velocity *= Math.pow(0.875, frameScale);
         motion.displacement += motion.velocity * frameScale;
         if (Math.abs(motion.displacement) < 0.04 && Math.abs(motion.velocity) < 0.04) {
           motion.displacement = 0;
@@ -587,7 +615,10 @@ export class PoemStage {
     this.interaction.active = insideViewport && !overUi;
     this.updateCursor(event.clientX, event.clientY, velocityX, velocityY, speed);
 
-    if (overUi) {
+    const openingEdgeLocked = !this.openingGestureCompleted &&
+      this.navigation.viewport.offset < this.initialIntroTarget - 1;
+    this.canvas.dataset.openingEdgeLocked = String(openingEdgeLocked);
+    if (overUi || openingEdgeLocked) {
       this.navigation.stopEdge();
     } else {
       this.navigation.updateEdge(
