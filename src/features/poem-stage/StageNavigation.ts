@@ -146,6 +146,10 @@ export class StageNavigation {
     return this.viewport.target >= this.viewport.maxOffset - 1;
   }
 
+  shouldTakeOverPlayback(time: number): boolean {
+    return this.edgeIntent !== 0 && time - this.edgeIntentSince >= 180;
+  }
+
   handleKey(key: "ArrowLeft" | "ArrowRight" | "Home" | "End"): void {
     this.stopEdge();
     const step = Math.max(88, Math.min(180, this.width * 0.12));

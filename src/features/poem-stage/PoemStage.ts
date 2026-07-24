@@ -203,6 +203,12 @@ export class PoemStage {
     const dt = Math.min(32, time - this.lastFrame);
     this.lastFrame = time;
     this.recordFrame(dt);
+    if (
+      (this.initialIntroPlaying || this.autoPlaying) &&
+      this.navigation.shouldTakeOverPlayback(time)
+    ) {
+      this.stopForManualControl(false);
+    }
     if (this.initialIntroPlaying) {
       const introTarget = this.initialIntroTarget;
       const duration = this.width < 720 ? 1.45 : 1.7;
@@ -472,11 +478,11 @@ export class PoemStage {
     this.syncPlaybackButton();
   }
 
-  private stopForManualControl(): void {
+  private stopForManualControl(stopEdge = true): void {
     this.initialPlaybackCancelled = true;
     this.initialIntroPlaying = false;
     this.autoPlaying = false;
-    this.navigation.stopEdge();
+    if (stopEdge) this.navigation.stopEdge();
     this.canvas.dataset.initialIntroPlaying = "false";
     this.canvas.dataset.manualPlaybackStop = "true";
     this.syncPlaybackButton();
@@ -581,14 +587,9 @@ export class PoemStage {
     this.interaction.active = insideViewport && !overUi;
     this.updateCursor(event.clientX, event.clientY, velocityX, velocityY, speed);
 
-    const edgeZone = this.width < 720 ? 58 : 82;
-    const overEdge = event.clientX < edgeZone || event.clientX > this.width - edgeZone;
     if (overUi) {
       this.navigation.stopEdge();
     } else {
-      if (overEdge && (this.initialIntroPlaying || this.autoPlaying)) {
-        this.stopForManualControl();
-      }
       this.navigation.updateEdge(
         event.clientX,
         this.interaction.pressing || Boolean(this.grabbed)
