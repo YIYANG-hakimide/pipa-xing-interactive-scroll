@@ -42,9 +42,14 @@ export class StageRenderer {
   private handscroll = new Image();
   private inkMode: "black" | "white";
   private ripples: WaterRipple[] = [];
+  private nightWash = document.createElement("canvas");
+  private nightWashKey = "";
+  private vignette = document.createElement("canvas");
+  private vignetteKey = "";
+  private mistSprites = new Map<number, HTMLCanvasElement>();
 
   constructor(private canvas: HTMLCanvasElement) {
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { alpha: false });
     if (!context) throw new Error("Canvas 2D is unavailable");
     this.context = context;
     this.inkMode = new URLSearchParams(window.location.search).get("ink") === "black"
@@ -86,6 +91,11 @@ export class StageRenderer {
     this.canvas.style.width = `${width}px`;
     this.canvas.style.height = `${height}px`;
     this.glyphs.clear();
+    this.resizeCache(this.nightWash, width, height, dpr);
+    this.resizeCache(this.vignette, width, height, dpr);
+    this.nightWashKey = "";
+    this.vignetteKey = "";
+    this.mistSprites.clear();
   }
 
   addRipple(x: number, y: number, strength: number, time: number): void {
@@ -223,7 +233,7 @@ export class StageRenderer {
 
   private drawAtmosphere(options: RenderOptions): void {
     const { context: ctx } = this;
-    const { width, height, progress, interaction, endingProgress } = options;
+    const { width, height, progress, interaction } = options;
     ctx.fillStyle = "#061016";
     ctx.fillRect(0, 0, width, height);
 
@@ -241,12 +251,7 @@ export class StageRenderer {
 
     }
 
-    const nightWash = ctx.createLinearGradient(0, 0, 0, height);
-    nightWash.addColorStop(0, `rgba(2, 9, 14, ${0.32 + endingProgress * 0.24})`);
-    nightWash.addColorStop(0.42, `rgba(2, 11, 15, ${0.2 + endingProgress * 0.2})`);
-    nightWash.addColorStop(1, `rgba(1, 7, 10, ${0.5 + endingProgress * 0.3})`);
-    ctx.fillStyle = nightWash;
-    ctx.fillRect(0, 0, width, height);
+    this.drawNightWash(options);
 
     this.drawWater(options);
     this.drawLanterns(options);
@@ -329,22 +334,24 @@ export class StageRenderer {
 
   private drawMist(options: RenderOptions): void {
     const { context: ctx } = this;
-    const { width, height, progress, interaction, endingProgress } = options;
+    const { width, height, dpr, progress, interaction, endingProgress } = options;
     const time = options.reducedMotion ? 0 : options.time;
     for (let i = 0; i < 7; i += 1) {
       const drift = (time * (0.004 + i * 0.0007) + progress * width * (0.1 + i * 0.018)) % (width + 420);
       const x = drift - 210 + (interaction.active ? (interaction.x / width - 0.5) * (i + 1) * 3 : 0);
       const y = height * (0.34 + i * 0.075);
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, 150 + i * 23);
-      gradient.addColorStop(0, `rgba(151, 166, 158, ${0.018 + endingProgress * 0.012})`);
-      gradient.addColorStop(0.52, `rgba(105, 129, 128, ${0.012 + endingProgress * 0.008})`);
-      gradient.addColorStop(1, "rgba(63, 86, 91, 0)");
-      ctx.fillStyle = gradient;
+      const sprite = this.mistSprite(i, dpr);
+      const spriteWidth = Number(sprite.dataset.cssWidth);
+      const spriteHeight = Number(sprite.dataset.cssHeight);
       ctx.save();
-      ctx.scale(1.9, 0.42);
-      ctx.beginPath();
-      ctx.arc(x / 1.9, y / 0.42, 150 + i * 23, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.globalAlpha = 0.6 + endingProgress * 0.4;
+      ctx.drawImage(
+        sprite,
+        x - spriteWidth / 2,
+        y - spriteHeight / 2,
+        spriteWidth,
+        spriteHeight
+      );
       ctx.restore();
     }
   }
@@ -385,18 +392,94 @@ export class StageRenderer {
       }
     }
 
-    const vignette = ctx.createRadialGradient(
-      width * 0.5,
-      height * 0.46,
-      Math.min(width, height) * 0.18,
-      width * 0.5,
-      height * 0.46,
-      Math.max(width, height) * 0.76
-    );
-    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
-    vignette.addColorStop(0.7, "rgba(0, 4, 8, 0.12)");
-    vignette.addColorStop(1, `rgba(0, 3, 6, ${0.48 + endingProgress * 0.24})`);
-    ctx.fillStyle = vignette;
-    ctx.fillRect(0, 0, width, height);
+    this.drawVignette(options);
+  }
+
+  private drawNightWash(options: RenderOptions): void {
+    const { width, height, dpr, endingProgress } = options;
+    const step = Math.round(endingProgress * 48);
+    const key = `${width}|${height}|${dpr}|${step}`;
+    if (key !== this.nightWashKey) {
+      const progress = step / 48;
+      const context = this.nightWash.getContext("2d");
+      if (context) {
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.clearRect(0, 0, width, height);
+        const gradient = context.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, `rgba(2, 9, 14, ${0.32 + progress * 0.24})`);
+        gradient.addColorStop(0.42, `rgba(2, 11, 15, ${0.2 + progress * 0.2})`);
+        gradient.addColorStop(1, `rgba(1, 7, 10, ${0.5 + progress * 0.3})`);
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, width, height);
+      }
+      this.nightWashKey = key;
+    }
+    this.context.drawImage(this.nightWash, 0, 0, width, height);
+  }
+
+  private drawVignette(options: RenderOptions): void {
+    const { width, height, dpr, endingProgress } = options;
+    const step = Math.round(endingProgress * 48);
+    const key = `${width}|${height}|${dpr}|${step}`;
+    if (key !== this.vignetteKey) {
+      const progress = step / 48;
+      const context = this.vignette.getContext("2d");
+      if (context) {
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.clearRect(0, 0, width, height);
+        const gradient = context.createRadialGradient(
+          width * 0.5,
+          height * 0.46,
+          Math.min(width, height) * 0.18,
+          width * 0.5,
+          height * 0.46,
+          Math.max(width, height) * 0.76
+        );
+        gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+        gradient.addColorStop(0.7, "rgba(0, 4, 8, 0.12)");
+        gradient.addColorStop(1, `rgba(0, 3, 6, ${0.48 + progress * 0.24})`);
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, width, height);
+      }
+      this.vignetteKey = key;
+    }
+    this.context.drawImage(this.vignette, 0, 0, width, height);
+  }
+
+  private mistSprite(index: number, dpr: number): HTMLCanvasElement {
+    const cached = this.mistSprites.get(index);
+    if (cached) return cached;
+    const radius = 150 + index * 23;
+    const width = Math.ceil(radius * 3.8);
+    const height = Math.ceil(radius * 0.84);
+    const sprite = document.createElement("canvas");
+    sprite.width = Math.ceil(width * dpr);
+    sprite.height = Math.ceil(height * dpr);
+    sprite.dataset.cssWidth = String(width);
+    sprite.dataset.cssHeight = String(height);
+    const context = sprite.getContext("2d");
+    if (context) {
+      context.setTransform(dpr * 1.9, 0, 0, dpr * 0.42, 0, 0);
+      const gradient = context.createRadialGradient(radius, radius, 0, radius, radius, radius);
+      gradient.addColorStop(0, "rgba(151, 166, 158, 0.03)");
+      gradient.addColorStop(0.52, "rgba(105, 129, 128, 0.02)");
+      gradient.addColorStop(1, "rgba(63, 86, 91, 0)");
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.arc(radius, radius, radius, 0, Math.PI * 2);
+      context.fill();
+    }
+    this.mistSprites.set(index, sprite);
+    return sprite;
+  }
+
+  private resizeCache(
+    canvas: HTMLCanvasElement,
+    width: number,
+    height: number,
+    dpr: number
+  ): void {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
   }
 }

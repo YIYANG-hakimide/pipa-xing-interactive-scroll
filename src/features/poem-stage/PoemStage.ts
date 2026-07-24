@@ -54,6 +54,8 @@ export class PoemStage {
   private initialPlaybackCancelled = false;
   private autoPlaying = false;
   private lastRippleAt = 0;
+  private performanceDebug = new URLSearchParams(window.location.search).get("debug") === "perf";
+  private frameSamples: number[] = [];
   private source: PoemColumn[];
   private ui: StageUiPresenter;
   private motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -93,7 +95,7 @@ export class PoemStage {
     this.resize();
     this.syncPlaybackButton();
     void this.startInitialPlayback();
-    this.raf = requestAnimationFrame(this.loop);
+    this.requestFrame();
   }
 
   private async startInitialPlayback(): Promise<void> {
@@ -118,6 +120,7 @@ export class PoemStage {
     window.removeEventListener("pointerup", this.onPointerUp);
     window.removeEventListener("pointercancel", this.onPointerCancel);
     window.removeEventListener("blur", this.onWindowBlur);
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
     window.removeEventListener("keydown", this.onKeyDown);
     this.elements.mute.removeEventListener("click", this.onMuteClick);
     this.elements.playback.removeEventListener("click", this.onPlaybackClick);
@@ -171,8 +174,11 @@ export class PoemStage {
   };
 
   private loop = (time: number): void => {
+    this.raf = 0;
+    if (document.hidden) return;
     const dt = Math.min(32, time - this.lastFrame);
     this.lastFrame = time;
+    this.recordFrame(dt);
     if (this.initialIntroPlaying) {
       const introTarget = this.initialIntroTarget;
       const duration = this.width < 720 ? 1.45 : 1.7;
@@ -214,8 +220,25 @@ export class PoemStage {
       interaction: this.interaction
     });
     this.updateUi();
-    this.raf = requestAnimationFrame(this.loop);
+    this.requestFrame();
   };
+
+  private requestFrame(): void {
+    if (this.raf || document.hidden) return;
+    this.raf = requestAnimationFrame(this.loop);
+  }
+
+  private recordFrame(dt: number): void {
+    if (!this.performanceDebug || dt <= 0) return;
+    this.frameSamples.push(dt);
+    if (this.frameSamples.length < 120) return;
+    const sorted = [...this.frameSamples].sort((a, b) => a - b);
+    const average = this.frameSamples.reduce((sum, value) => sum + value, 0) /
+      this.frameSamples.length;
+    this.canvas.dataset.averageFps = (1000 / average).toFixed(1);
+    this.canvas.dataset.p95FrameMs = sorted[Math.floor(sorted.length * 0.95)].toFixed(2);
+    this.frameSamples.length = 0;
+  }
 
   private visibleWorldRange(buffer: number) {
     return {
@@ -233,6 +256,7 @@ export class PoemStage {
     window.addEventListener("pointerup", this.onPointerUp);
     window.addEventListener("pointercancel", this.onPointerCancel);
     window.addEventListener("blur", this.onWindowBlur);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
     window.addEventListener("keydown", this.onKeyDown);
     this.elements.mute.addEventListener("click", this.onMuteClick);
     this.elements.playback.addEventListener("click", this.onPlaybackClick);
@@ -499,6 +523,18 @@ export class PoemStage {
     this.navigation.stopEdge();
   };
 
+  private onVisibilityChange = (): void => {
+    if (document.hidden) {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = 0;
+      this.canvas.dataset.renderSuspended = "true";
+      return;
+    }
+    this.lastFrame = performance.now();
+    this.canvas.dataset.renderSuspended = "false";
+    this.requestFrame();
+  };
+
   private updateCursor(
     x: number,
     y: number,
@@ -578,6 +614,7 @@ export class PoemStage {
 
   private updateUi(): void {
     const progress = this.navigation.viewport.progress;
+    this.canvas.dataset.awakeStrings = String(this.simulation.awakeCount);
     this.canvas.dataset.progress = progress.toFixed(4);
     this.canvas.dataset.cameraOffset = this.cameraOffset.toFixed(2);
     const endingProgress = this.endingProgressFor(this.navigation.viewport.offset);

@@ -20,6 +20,7 @@ interface StageUiState {
 
 export class StageUiPresenter {
   private currentSectionId = "";
+  private lastFrameKey = "";
   private experience: HTMLElement;
 
   constructor(private elements: PoemStageElements, canvas: HTMLCanvasElement) {
@@ -27,6 +28,16 @@ export class StageUiPresenter {
   }
 
   update(state: StageUiState): void {
+    const frameKey = [
+      state.progress.toFixed(5),
+      state.offset.toFixed(2),
+      state.endingProgress.toFixed(4),
+      state.width,
+      Number(state.reducedMotion)
+    ].join("|");
+    if (frameKey === this.lastFrameKey) return;
+    this.lastFrameKey = frameKey;
+
     const introProgress = clamp01(state.offset / Math.max(1, state.introDistance));
     const introExit = introExitProgress(introProgress);
     const easedIntroExit = easeOutCubic(introExit);

@@ -32,6 +32,8 @@ interface SimulationOptions {
 export class StringSimulation {
   readonly columns: StringColumn[] = [];
   private particleId = 0;
+  private awakeColumns = new Set<string>();
+  private quietFrames = new Map<string, number>();
 
   constructor(
     source: Array<{
@@ -57,6 +59,8 @@ export class StringSimulation {
     this.options = options;
     this.columns.length = 0;
     this.particleId = 0;
+    this.awakeColumns.clear();
+    this.quietFrames.clear();
 
     source.forEach((item, columnIndex) => {
       const x = -columnIndex * options.columnGap;
@@ -91,6 +95,7 @@ export class StringSimulation {
 
     for (const column of this.columns) {
       if (column.x < activeRange.minX || column.x > activeRange.maxX) continue;
+      if (!this.awakeColumns.has(column.id)) continue;
 
       for (const particle of column.particles) {
         particle.energy *= 0.91;
@@ -139,7 +144,23 @@ export class StringSimulation {
           particle.previous.y = Math.min(particle.previous.y, minimumY);
         }
       }
+
+      const active = column.particles.some((particle) => {
+        if (particle.pinned && particle.charIndex > 0) return true;
+        const motion = Math.hypot(
+          particle.position.x - particle.previous.x,
+          particle.position.y - particle.previous.y
+        );
+        return particle.energy > 0.012 || motion > 0.34;
+      });
+      const quietFrames = active ? 0 : (this.quietFrames.get(column.id) ?? 0) + 1;
+      this.quietFrames.set(column.id, quietFrames);
+      if (quietFrames >= 18) this.sleepColumn(column);
     }
+  }
+
+  get awakeCount(): number {
+    return this.awakeColumns.size;
   }
 
   disturb(
@@ -167,6 +188,7 @@ export class StringSimulation {
         particle.position.x += impulseX * influence;
         particle.position.y += impulseY * influence;
         particle.energy = Math.min(1, particle.energy + influence * 0.62);
+        this.wakeColumn(column);
 
         if (!nearest || distance < nearest.distance) {
           nearest = { column, particle, distance };
@@ -194,6 +216,7 @@ export class StringSimulation {
 
   grabParticle(worldX: number, y: number, radius: number): StringParticle | null {
     let nearest: StringParticle | null = null;
+    let nearestColumn: StringColumn | null = null;
     let nearestDistance = radius;
     for (const column of this.columns) {
       if (Math.abs(column.x - worldX) > radius) continue;
@@ -205,10 +228,26 @@ export class StringSimulation {
         );
         if (distance < nearestDistance) {
           nearest = particle;
+          nearestColumn = column;
           nearestDistance = distance;
         }
       }
     }
+    if (nearestColumn) this.wakeColumn(nearestColumn);
     return nearest;
+  }
+
+  private wakeColumn(column: StringColumn): void {
+    this.awakeColumns.add(column.id);
+    this.quietFrames.set(column.id, 0);
+  }
+
+  private sleepColumn(column: StringColumn): void {
+    for (const particle of column.particles) {
+      particle.previous.set(particle.position.x, particle.position.y);
+      if (particle.energy < 0.012) particle.energy = 0;
+    }
+    this.awakeColumns.delete(column.id);
+    this.quietFrames.delete(column.id);
   }
 }
