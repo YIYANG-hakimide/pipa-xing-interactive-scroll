@@ -534,7 +534,6 @@ export class PoemStage {
 
   private onPointerDown = (event: PointerEvent): void => {
     if (!this.enabled) return;
-    this.stopForManualControl();
     this.interaction.pressing = true;
     this.elements.cursor.classList.add("is-pressing");
     void this.ensureAudio();
