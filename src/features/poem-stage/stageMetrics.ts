@@ -12,7 +12,7 @@ export function calculateStageMetrics(
     Math.min(29, (height * 0.69) / Math.max(1, maxChars - 1))
   );
   const columnGap = mobile ? 82 : 104;
-  const introDistance = width * (mobile ? 0.88 : 0.94);
+  const introDistance = width * (mobile ? 1.08 : 0.94);
   const rightAnchor = width - (mobile ? 48 : 105);
   const finalColumnReadingX = width * (mobile ? 0.12 : 0.15);
   const readingEndOffset = Math.max(

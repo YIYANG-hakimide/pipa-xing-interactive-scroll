@@ -445,7 +445,7 @@ button {
   position: absolute;
   z-index: 8;
   top: 50%;
-  left: clamp(210px, 18vw, 370px);
+  left: clamp(280px, 27vw, 480px);
   width: min(520px, 72vw);
   opacity: var(--intro-alpha);
   filter: blur(var(--intro-blur));
@@ -627,7 +627,10 @@ button {
 }
 
 .intro-strings i.is-plucked {
-  filter: drop-shadow(0 0 7px rgba(244, 213, 150, 0.52));
+  filter:
+    brightness(1.26)
+    drop-shadow(0 0 5px rgba(255, 230, 174, 0.82))
+    drop-shadow(0 0 13px rgba(221, 161, 73, 0.45));
 }
 
 .intro-strings.is-complete {
@@ -964,7 +967,7 @@ button {
   .intro {
     top: 50%;
     bottom: auto;
-    left: 18%;
+    left: 24%;
     width: 74%;
     transform: translate(var(--intro-x), -47%);
   }
