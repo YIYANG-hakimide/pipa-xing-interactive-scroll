@@ -112,14 +112,7 @@ export class StageUiPresenter {
   private progressLabel(state: StageUiState): string {
     if (state.offset < state.introDistance * INTRO_EXIT_END) return "卷首";
     if (state.offset > state.readingEndOffset + state.endingDistance * 0.45) return "曲终";
-    const readingProgress = Math.max(
-      0,
-      Math.min(
-        1,
-        (state.offset - state.introDistance) /
-          Math.max(1, state.readingEndOffset - state.introDistance)
-      )
-    );
+    const readingProgress = this.readingProgress(state);
     const numerals = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
     const tenth = Math.max(1, Math.min(9, Math.floor(readingProgress * 10)));
     return `阅至${numerals[tenth - 1]}成`;
@@ -134,20 +127,20 @@ export class StageUiPresenter {
       this.setSection("intro", "卷首", state.reducedMotion);
       return;
     }
-    const readingProgress = Math.max(
-      0,
-      Math.min(
-        1,
-        (state.offset - state.introDistance) /
-          Math.max(1, state.readingEndOffset - state.introDistance)
-      )
-    );
+    const readingProgress = this.readingProgress(state);
     const index = Math.max(
       0,
       Math.min(state.columns.length - 1, Math.round(readingProgress * (state.columns.length - 1)))
     );
     const section = state.columns[index];
     if (section) this.setSection(section.sectionId, section.sectionTitle, state.reducedMotion);
+  }
+
+  private readingProgress(state: StageUiState): number {
+    return clamp01(
+      (state.offset - state.introDistance) /
+        Math.max(1, state.readingEndOffset - state.introDistance)
+    );
   }
 
   private setSection(id: string, label: string, reducedMotion: boolean): void {

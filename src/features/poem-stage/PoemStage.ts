@@ -30,6 +30,9 @@ interface OpeningStringMotion {
   dragging: boolean;
 }
 
+const pageFlags = new URLSearchParams(window.location.search);
+const forceReducedMotion = pageFlags.get("motion") === "reduce";
+
 export class PoemStage {
   private renderer: StageRenderer;
   private navigation: StageNavigation;
@@ -49,7 +52,6 @@ export class PoemStage {
   private introDistance = 0;
   private readingEndOffset = 0;
   private endingDistance = 0;
-  private enabled = true;
   private openingSoundPlayed = false;
   private openingSoundPending = false;
   private openingSoundLastAttempt = 0;
@@ -72,13 +74,12 @@ export class PoemStage {
   private initialPlaybackCancelled = false;
   private autoPlaying = false;
   private lastRippleAt = 0;
-  private performanceDebug = new URLSearchParams(window.location.search).get("debug") === "perf";
+  private performanceDebug = pageFlags.get("debug") === "perf";
   private frameSamples: number[] = [];
   private source: PoemColumn[];
   private ui: StageUiPresenter;
   private motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
-  private reducedMotion = this.motionPreference.matches ||
-    new URLSearchParams(window.location.search).get("motion") === "reduce";
+  private reducedMotion = this.motionPreference.matches || forceReducedMotion;
   private interaction: StageInteractionState = {
     x: 0,
     y: 0,
@@ -128,7 +129,7 @@ export class PoemStage {
     const backgroundLoaded = await this.renderer.backgroundReady;
     this.canvas.dataset.initialBackgroundReady = String(backgroundLoaded);
     this.canvas.dataset.openingAwaitingGesture = String(
-      !this.openingGestureCompleted && this.navigation.viewport.offset < 1
+      !this.openingGestureCompleted && this.openingGestureReady
     );
   }
 
@@ -328,10 +329,7 @@ export class PoemStage {
   };
 
   private onOpeningPointerDown = (event: PointerEvent): void => {
-    if (
-      this.openingGestureCompleted ||
-      this.navigation.viewport.offset > this.introDistance * INTRO_EXIT_START
-    ) return;
+    if (this.openingGestureCompleted || !this.openingGestureReady) return;
     event.preventDefault();
     event.stopPropagation();
     this.openingGestureActive = true;
@@ -341,8 +339,7 @@ export class PoemStage {
     this.openingGestureLastX = event.clientX;
     this.openingStringsPlayed.clear();
     const buttonRect = this.elements.introStrings.getBoundingClientRect();
-    const strings = this.openingStringElements();
-    this.openingStringCenters = strings.map(
+    this.openingStringCenters = this.openingStringNodes.map(
       (string) => buttonRect.left + string.offsetLeft + string.offsetWidth / 2
     );
     this.openingStringCandidate = this.openingStringCenters.reduce(
@@ -353,7 +350,7 @@ export class PoemStage {
           : nearestIndex,
       0
     );
-    strings.forEach((string, index) => {
+    this.openingStringNodes.forEach((string, index) => {
       string.classList.remove("is-plucked");
       const motion = this.openingStringMotions[index];
       motion.dragging = false;
@@ -376,10 +373,9 @@ export class PoemStage {
     }
 
     this.canvas.dataset.openingGestureDirection = "right-to-left";
-    const strings = this.openingStringElements();
     const pointerDelta = event.clientX - previousX;
     const gestureDistance = this.openingGestureStartX - event.clientX;
-    for (const [index] of strings.entries()) {
+    for (const [index] of this.openingStringNodes.entries()) {
       const centerX = this.openingStringCenters[index];
       const motion = this.openingStringMotions[index];
       const isCandidate = index === this.openingStringCandidate;
@@ -441,10 +437,6 @@ export class PoemStage {
     void this.audio.strike(4 + index * 2, 0.82 + index * 0.05, true, -1, pan);
   }
 
-  private openingStringElements(): HTMLElement[] {
-    return this.openingStringNodes;
-  }
-
   private releaseOpeningStrings(): void {
     this.openingStringMotions.forEach((motion) => {
       motion.dragging = false;
@@ -482,10 +474,9 @@ export class PoemStage {
 
   private updateOpeningStringMotion(dt: number): void {
     const frameScale = Math.min(1.8, Math.max(0.45, dt / 16.67));
-    const strings = this.openingStringElements();
     let maximumDisplacement = 0;
 
-    strings.forEach((string, index) => {
+    this.openingStringNodes.forEach((string, index) => {
       const motion = this.openingStringMotions[index];
       if (!motion.dragging) {
         motion.velocity += -motion.displacement * 0.072 * frameScale;
@@ -588,8 +579,7 @@ export class PoemStage {
   }
 
   private onMotionPreferenceChange = (event: MediaQueryListEvent): void => {
-    this.reducedMotion = event.matches ||
-      new URLSearchParams(window.location.search).get("motion") === "reduce";
+    this.reducedMotion = event.matches || forceReducedMotion;
     this.canvas.dataset.reducedMotion = String(this.reducedMotion);
     this.navigation.setReducedMotion(this.reducedMotion);
     if (this.reducedMotion) {
@@ -600,7 +590,6 @@ export class PoemStage {
   };
 
   private onPointerDown = (event: PointerEvent): void => {
-    if (!this.enabled) return;
     this.interaction.pressing = true;
     this.elements.cursor.classList.add("is-pressing");
     void this.ensureAudio();
@@ -629,7 +618,6 @@ export class PoemStage {
   };
 
   private onPointerMove = (event: PointerEvent): void => {
-    if (!this.enabled) return;
     if (event.pointerId === this.openingGestureSuppressedPointer) return;
     const now = performance.now();
     const elapsed = Math.max(8, now - this.lastPointer.time);
@@ -723,10 +711,7 @@ export class PoemStage {
       this.openingGestureSuppressedPointer = -1;
       return;
     }
-    if (this.grabbed) {
-      this.grabbed.pinned = false;
-      this.grabbed = null;
-    }
+    this.releaseGrabbedString();
     this.interaction.pressing = false;
     this.elements.cursor.classList.remove("is-pressing");
     if (event.pointerType !== "mouse") this.navigation.stopEdge();
@@ -752,13 +737,16 @@ export class PoemStage {
     this.openingGestureSuppressedPointer = -1;
     this.interaction.active = false;
     this.interaction.pressing = false;
-    if (this.grabbed) {
-      this.grabbed.pinned = false;
-      this.grabbed = null;
-    }
+    this.releaseGrabbedString();
     this.elements.cursor.classList.remove("is-visible", "is-pressing");
     this.navigation.stopEdge();
   };
+
+  private releaseGrabbedString(): void {
+    if (!this.grabbed) return;
+    this.grabbed.pinned = false;
+    this.grabbed = null;
+  }
 
   private onVisibilityChange = (): void => {
     if (document.hidden) {
@@ -874,7 +862,7 @@ export class PoemStage {
     const introTransition = introExitProgress(introProgress);
     this.canvas.dataset.introTransition = introTransition.toFixed(3);
     if (
-      introProgress <= INTRO_EXIT_START &&
+      this.openingGestureReady &&
       this.openingGestureCompleted &&
       !this.initialIntroPlaying &&
       !this.autoPlaying
@@ -935,6 +923,10 @@ export class PoemStage {
 
   private get initialIntroTarget(): number {
     return this.introDistance * INTRO_EXIT_END;
+  }
+
+  private get openingGestureReady(): boolean {
+    return this.navigation.viewport.target <= this.introDistance * INTRO_EXIT_START;
   }
 
 }
