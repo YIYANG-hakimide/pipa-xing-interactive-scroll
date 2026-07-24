@@ -47,6 +47,13 @@ export class PoemStage {
   private openingSoundPending = false;
   private openingSoundLastAttempt = 0;
   private openingAudioTriggerCount = 0;
+  private openingGestureActive = false;
+  private openingGestureCompleted = false;
+  private openingGesturePointer = -1;
+  private openingGestureSuppressedPointer = -1;
+  private openingGestureStartX = 0;
+  private openingGestureLastX = 0;
+  private openingStringsPlayed = new Set<number>();
   private endingSoundPlayed = false;
   private endingAudioTriggerCount = 0;
   private audioUnlocked = false;
@@ -101,13 +108,9 @@ export class PoemStage {
   private async startInitialPlayback(): Promise<void> {
     const backgroundLoaded = await this.renderer.backgroundReady;
     this.canvas.dataset.initialBackgroundReady = String(backgroundLoaded);
-    if (
-      !this.reducedMotion &&
-      !this.initialPlaybackCancelled &&
-      this.navigation.viewport.offset < 1
-    ) {
-      this.setInitialIntroPlaying(true);
-    }
+    this.canvas.dataset.openingAwaitingGesture = String(
+      !this.openingGestureCompleted && this.navigation.viewport.offset < 1
+    );
   }
 
   destroy(): void {
@@ -124,6 +127,10 @@ export class PoemStage {
     window.removeEventListener("keydown", this.onKeyDown);
     this.elements.mute.removeEventListener("click", this.onMuteClick);
     this.elements.playback.removeEventListener("click", this.onPlaybackClick);
+    this.elements.introStrings.removeEventListener("pointerdown", this.onOpeningPointerDown);
+    this.elements.introStrings.removeEventListener("pointermove", this.onOpeningPointerMove);
+    this.elements.introStrings.removeEventListener("pointerup", this.onOpeningPointerUp);
+    this.elements.introStrings.removeEventListener("pointercancel", this.onOpeningPointerUp);
     this.elements.progress.removeEventListener("pointerdown", this.onTimelinePointerDown);
     window.removeEventListener("pointermove", this.onTimelinePointerMove);
     window.removeEventListener("pointerup", this.onTimelinePointerUp);
@@ -260,6 +267,10 @@ export class PoemStage {
     window.addEventListener("keydown", this.onKeyDown);
     this.elements.mute.addEventListener("click", this.onMuteClick);
     this.elements.playback.addEventListener("click", this.onPlaybackClick);
+    this.elements.introStrings.addEventListener("pointerdown", this.onOpeningPointerDown);
+    this.elements.introStrings.addEventListener("pointermove", this.onOpeningPointerMove);
+    this.elements.introStrings.addEventListener("pointerup", this.onOpeningPointerUp);
+    this.elements.introStrings.addEventListener("pointercancel", this.onOpeningPointerUp);
     this.elements.progress.addEventListener("pointerdown", this.onTimelinePointerDown);
     window.addEventListener("pointermove", this.onTimelinePointerMove);
     window.addEventListener("pointerup", this.onTimelinePointerUp);
@@ -284,16 +295,96 @@ export class PoemStage {
     if (this.navigation.atEnd) this.navigation.rewind(true);
     this.initialPlaybackCancelled = false;
     if (this.navigation.viewport.offset < this.initialIntroTarget - 1) {
-      if (this.reducedMotion) {
-        this.navigation.viewport.setTarget(this.initialIntroTarget, true);
-        this.setAutoPlaying(true);
-      } else {
-        this.setInitialIntroPlaying(true);
-      }
+      await this.beginOpeningPlayback("playback-button");
       return;
     }
     this.setAutoPlaying(true);
   };
+
+  private onOpeningPointerDown = (event: PointerEvent): void => {
+    if (this.openingGestureCompleted || this.navigation.viewport.offset > 2) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.openingGestureActive = true;
+    this.openingGesturePointer = event.pointerId;
+    this.openingGestureSuppressedPointer = event.pointerId;
+    this.openingGestureStartX = event.clientX;
+    this.openingGestureLastX = event.clientX;
+    this.openingStringsPlayed.clear();
+    this.elements.introStrings.querySelectorAll("i").forEach((string) => {
+      string.classList.remove("is-plucked");
+    });
+    this.elements.introStrings.setPointerCapture?.(event.pointerId);
+    this.canvas.dataset.openingGestureDirection = "pending";
+    void this.ensureAudio();
+  };
+
+  private onOpeningPointerMove = (event: PointerEvent): void => {
+    if (!this.openingGestureActive || event.pointerId !== this.openingGesturePointer) return;
+    event.preventDefault();
+    const previousX = this.openingGestureLastX;
+    this.openingGestureLastX = event.clientX;
+    if (event.clientX >= previousX) {
+      this.canvas.dataset.openingGestureDirection = "wrong-way";
+      return;
+    }
+
+    this.canvas.dataset.openingGestureDirection = "right-to-left";
+    const strings = [...this.elements.introStrings.querySelectorAll<HTMLElement>("i")];
+    for (const [index, string] of strings.entries()) {
+      if (this.openingStringsPlayed.has(index)) continue;
+      const rect = string.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      if (centerX > previousX + 4 || centerX < event.clientX - 4) continue;
+      this.openingStringsPlayed.add(index);
+      string.classList.add("is-plucked");
+      const pan = this.panFor(centerX);
+      void this.audio.strike(4 + index * 2, 0.78 + index * 0.05, true, -1, pan);
+    }
+    this.canvas.dataset.openingStringsPlayed = String(this.openingStringsPlayed.size);
+
+    if (
+      this.openingStringsPlayed.size >= 3 &&
+      this.openingGestureStartX - event.clientX >= 34
+    ) {
+      this.finishOpeningGesture(event.pointerId);
+      void this.beginOpeningPlayback("string-sweep");
+    }
+  };
+
+  private onOpeningPointerUp = (event: PointerEvent): void => {
+    if (event.pointerId !== this.openingGesturePointer) return;
+    this.finishOpeningGesture(event.pointerId);
+  };
+
+  private finishOpeningGesture(pointerId: number): void {
+    if (!this.openingGestureActive) return;
+    this.openingGestureActive = false;
+    this.openingGesturePointer = -1;
+    if (this.elements.introStrings.hasPointerCapture?.(pointerId)) {
+      this.elements.introStrings.releasePointerCapture?.(pointerId);
+    }
+  }
+
+  private async beginOpeningPlayback(source: "playback-button" | "string-sweep"): Promise<void> {
+    if (this.openingGestureCompleted && this.initialIntroPlaying) return;
+    this.openingGestureCompleted = true;
+    this.initialPlaybackCancelled = false;
+    this.elements.introStrings.classList.add("is-complete");
+    this.elements.introStrings.disabled = true;
+    this.canvas.dataset.openingAwaitingGesture = "false";
+    this.canvas.dataset.openingGestureComplete = "true";
+    this.canvas.dataset.openingGestureSource = source;
+    void this.ensureAudio();
+    await this.renderer.backgroundReady;
+    if (this.initialPlaybackCancelled) return;
+    if (this.reducedMotion) {
+      this.navigation.viewport.setTarget(this.initialIntroTarget, true);
+      this.setAutoPlaying(true);
+      return;
+    }
+    this.setInitialIntroPlaying(true);
+  }
 
   private setAutoPlaying(playing: boolean): void {
     this.autoPlaying = playing;
@@ -398,6 +489,7 @@ export class PoemStage {
 
   private onPointerMove = (event: PointerEvent): void => {
     if (!this.enabled) return;
+    if (event.pointerId === this.openingGestureSuppressedPointer) return;
     const now = performance.now();
     const elapsed = Math.max(8, now - this.lastPointer.time);
     const velocityX = ((event.clientX - this.lastPointer.x) / elapsed) * 16.67;
@@ -488,6 +580,10 @@ export class PoemStage {
   };
 
   private onPointerUp = (event: PointerEvent): void => {
+    if (event.pointerId === this.openingGestureSuppressedPointer) {
+      this.openingGestureSuppressedPointer = -1;
+      return;
+    }
     if (this.grabbed) {
       this.grabbed.pinned = false;
       this.grabbed = null;
@@ -498,6 +594,7 @@ export class PoemStage {
   };
 
   private onPointerCancel = (): void => {
+    this.openingGestureSuppressedPointer = -1;
     this.onWindowBlur();
   };
 
@@ -513,6 +610,7 @@ export class PoemStage {
   };
 
   private onWindowBlur = (): void => {
+    this.openingGestureSuppressedPointer = -1;
     this.interaction.active = false;
     this.interaction.pressing = false;
     if (this.grabbed) {

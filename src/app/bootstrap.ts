@@ -43,6 +43,12 @@ export function bootstrap(): void {
       </footer>
 
       <section class="intro" id="introPanel">
+        <button class="intro-strings" id="introStrings" type="button" aria-label="向左拨动琵琶弦，开始弹奏">
+          <i data-string="0" aria-hidden="true"></i>
+          <i data-string="1" aria-hidden="true"></i>
+          <i data-string="2" aria-hidden="true"></i>
+          <i data-string="3" aria-hidden="true"></i>
+        </button>
         <div class="intro__title-group">
           <h2>琵琶行</h2>
           <div class="intro__byline">
@@ -52,7 +58,7 @@ export function bootstrap(): void {
         </div>
         <div class="intro__direction" aria-hidden="true">
           <svg viewBox="0 0 72 18"><path d="M70 9H3M13 1 3 9l10 8" /></svg>
-          <span>向左拖动下方卷轴</span>
+          <span>向左拨弦，开始弹奏</span>
         </div>
       </section>
 
@@ -84,6 +90,7 @@ export function bootstrap(): void {
     mute: get("#muteButton"),
     playback: get("#playbackButton"),
     intro: get("#introPanel"),
+    introStrings: get("#introStrings"),
     ending: get("#endingPage"),
     cursor: get("#plectrumCursor")
   });

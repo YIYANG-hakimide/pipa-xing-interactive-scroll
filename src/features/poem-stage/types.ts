@@ -13,6 +13,7 @@ export interface PoemStageElements {
   mute: HTMLButtonElement;
   playback: HTMLButtonElement;
   intro: HTMLElement;
+  introStrings: HTMLButtonElement;
   ending: HTMLElement;
   cursor: HTMLElement;
 }
