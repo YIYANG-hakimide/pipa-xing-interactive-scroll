@@ -44,6 +44,7 @@ export function bootstrap(): void {
 
       <section class="intro" id="introPanel">
         <button class="intro-strings" id="introStrings" type="button" aria-label="向左拨动琵琶弦，开始弹奏">
+          <span class="intro-strings__head" aria-hidden="true"></span>
           <i data-string="0" aria-hidden="true"></i>
           <i data-string="1" aria-hidden="true"></i>
           <i data-string="2" aria-hidden="true"></i>

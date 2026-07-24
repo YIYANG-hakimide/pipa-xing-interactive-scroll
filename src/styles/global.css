@@ -445,8 +445,8 @@ button {
   position: absolute;
   z-index: 8;
   top: 50%;
-  left: 13%;
-  width: min(420px, 76vw);
+  left: clamp(210px, 18vw, 370px);
+  width: min(520px, 72vw);
   opacity: var(--intro-alpha);
   filter: blur(var(--intro-blur));
   transform: translate(var(--intro-x), -50%);
@@ -462,13 +462,13 @@ button {
 .intro-strings {
   position: absolute;
   top: 50%;
-  left: -92px;
+  left: -144px;
   z-index: 3;
   display: flex;
   justify-content: space-between;
-  width: 70px;
-  height: min(430px, 58vh);
-  padding: 0 8px;
+  width: 116px;
+  height: min(560px, 68vh);
+  padding: 12px 26px 34px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -477,23 +477,93 @@ button {
   transform: translateY(-50%);
   touch-action: none;
   pointer-events: auto;
+  isolation: isolate;
 }
 
 .intro-strings::before {
   content: "拨弦";
   position: absolute;
-  bottom: -28px;
+  bottom: -34px;
   left: 50%;
-  color: rgba(232, 214, 178, 0.46);
+  z-index: 3;
+  color: rgba(239, 219, 177, 0.68);
   font-family: var(--font-ui);
-  font-size: 9px;
-  letter-spacing: 0.24em;
+  font-size: 12px;
+  letter-spacing: 0.28em;
   white-space: nowrap;
   transform: translateX(-50%);
 }
 
+.intro-strings::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  right: 5px;
+  bottom: 16px;
+  left: 5px;
+  height: 220px;
+  background:
+    radial-gradient(circle at 50% 77%, rgba(230, 198, 125, 0.34) 0 3px, transparent 4px),
+    radial-gradient(circle at 35% 68%, rgba(193, 86, 58, 0.25) 0 4px, transparent 5px),
+    radial-gradient(circle at 65% 68%, rgba(193, 86, 58, 0.25) 0 4px, transparent 5px),
+    radial-gradient(circle at 50% 54%, rgba(230, 198, 125, 0.22) 0 5px, transparent 6px),
+    linear-gradient(180deg, rgba(104, 66, 36, 0.05), rgba(35, 19, 13, 0.5));
+  border: 1px solid rgba(225, 190, 119, 0.34);
+  clip-path: polygon(47% 0, 53% 0, 56% 13%, 64% 25%, 77% 39%, 92% 64%, 98% 82%, 91% 100%, 9% 100%, 2% 82%, 8% 64%, 23% 39%, 36% 25%, 44% 13%);
+  filter:
+    drop-shadow(0 0 1px rgba(247, 222, 165, 0.72))
+    drop-shadow(0 12px 22px rgba(0, 0, 0, 0.4));
+  opacity: calc(0.42 + var(--intro-copy-alpha) * 0.38);
+  pointer-events: none;
+}
+
+.intro-strings__head {
+  position: absolute;
+  z-index: 1;
+  top: 1%;
+  left: 50%;
+  width: 11px;
+  height: 128px;
+  border: 1px solid rgba(226, 193, 125, 0.32);
+  border-radius: 48% 48% 4px 4px;
+  background:
+    radial-gradient(circle at 50% 12%, rgba(215, 87, 58, 0.55) 0 2px, transparent 3px),
+    linear-gradient(90deg, rgba(54, 29, 20, 0.84), rgba(145, 96, 46, 0.34), rgba(48, 26, 19, 0.86));
+  box-shadow: 0 0 12px rgba(213, 165, 82, 0.15);
+  opacity: calc(0.48 + var(--intro-copy-alpha) * 0.38);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.intro-strings__head::before,
+.intro-strings__head::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 66px;
+  height: 7px;
+  border: 1px solid rgba(225, 190, 119, 0.3);
+  border-radius: 70% 28% 70% 28%;
+  background:
+    radial-gradient(circle, rgba(230, 204, 147, 0.62) 0 1px, transparent 2px) 0 50% / 10px 7px,
+    rgba(45, 27, 21, 0.72);
+  box-shadow: 0 26px 0 -1px rgba(69, 42, 28, 0.7);
+  transform-origin: center;
+}
+
+.intro-strings__head::before {
+  top: 29px;
+  transform: translateX(-50%) rotate(5deg);
+}
+
+.intro-strings__head::after {
+  top: 48px;
+  transform: translateX(-50%) rotate(-5deg) scaleX(0.88);
+}
+
 .intro-strings i {
   position: relative;
+  z-index: 2;
   display: block;
   width: 1px;
   height: 100%;
@@ -507,6 +577,28 @@ button {
   );
   box-shadow: 0 0 8px rgba(225, 177, 92, 0.12);
   transform-origin: 50% 8%;
+}
+
+.intro-strings i::before,
+.intro-strings i::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border: 1px solid rgba(237, 205, 139, 0.58);
+  border-radius: 50%;
+  background: rgba(76, 43, 26, 0.82);
+  box-shadow: 0 0 7px rgba(232, 186, 100, 0.28);
+  transform: translateX(-50%);
+}
+
+.intro-strings i::before {
+  top: 3%;
+}
+
+.intro-strings i::after {
+  bottom: 5%;
 }
 
 .intro-strings i:nth-child(2) {
@@ -596,16 +688,16 @@ button {
 .intro__direction {
   display: flex;
   align-items: center;
-  gap: 13px;
-  margin-top: 32px;
-  color: rgba(231, 211, 171, 0.58);
+  gap: 16px;
+  margin-top: 36px;
+  color: rgba(238, 218, 177, 0.72);
   font-family: var(--font-ui);
-  font-size: 10px;
-  letter-spacing: 0.2em;
+  font-size: 13px;
+  letter-spacing: 0.18em;
 }
 
 .intro__direction svg {
-  width: 72px;
+  width: 86px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1;
@@ -784,8 +876,8 @@ button {
   .intro {
     top: 50%;
     bottom: auto;
-    left: 14%;
-    width: 72%;
+    left: 18%;
+    width: 74%;
     transform: translate(var(--intro-x), -47%);
   }
 
@@ -794,10 +886,24 @@ button {
   }
 
   .intro-strings {
-    left: -58px;
-    width: 50px;
-    height: min(360px, 52vh);
-    padding-inline: 6px;
+    left: -76px;
+    width: 70px;
+    height: min(410px, 56vh);
+    padding: 8px 14px 30px;
+  }
+
+  .intro-strings::before {
+    bottom: -30px;
+    font-size: 11px;
+  }
+
+  .intro-strings::after {
+    height: 152px;
+  }
+
+  .intro-strings__head {
+    transform: translateX(-50%) scale(0.76);
+    transform-origin: 50% 0;
   }
 
   .intro h2 {
@@ -805,8 +911,14 @@ button {
   }
 
   .intro__direction {
-    margin-top: 24px;
-    font-size: 9px;
+    gap: 11px;
+    margin-top: 26px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+
+  .intro__direction svg {
+    width: 66px;
   }
 
   .ending-page__composition {
