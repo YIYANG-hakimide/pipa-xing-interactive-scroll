@@ -12,6 +12,7 @@ import { stringMidiForColumn } from "../../themes/pipa-xing/melody";
 import { buildPoemColumns } from "./poemColumns";
 import { calculateStageMetrics } from "./stageMetrics";
 import {
+  INTRO_EXIT_START,
   INTRO_EXIT_END,
   OPENING_CADENCE_RESET,
   OPENING_CADENCE_TRIGGER,
@@ -327,7 +328,10 @@ export class PoemStage {
   };
 
   private onOpeningPointerDown = (event: PointerEvent): void => {
-    if (this.openingGestureCompleted || this.navigation.viewport.offset > 2) return;
+    if (
+      this.openingGestureCompleted ||
+      this.navigation.viewport.offset > this.introDistance * INTRO_EXIT_START
+    ) return;
     event.preventDefault();
     event.stopPropagation();
     this.openingGestureActive = true;
@@ -445,6 +449,35 @@ export class PoemStage {
     this.openingStringMotions.forEach((motion) => {
       motion.dragging = false;
     });
+  }
+
+  private resetOpeningGesture(): void {
+    if (this.openingGestureActive) return;
+
+    this.openingGestureCompleted = false;
+    this.openingGesturePointer = -1;
+    this.openingGestureSuppressedPointer = -1;
+    this.openingStringCandidate = -1;
+    this.openingStringsPlayed.clear();
+
+    this.openingStringMotions.forEach((motion) => {
+      motion.displacement = 0;
+      motion.velocity = 0;
+      motion.dragging = false;
+    });
+    this.openingStringNodes.forEach((string) => {
+      string.classList.remove("is-plucked");
+      string.style.setProperty("--string-shift", "0px");
+      string.style.setProperty("--string-tilt", "0deg");
+    });
+
+    this.elements.introStrings.classList.remove("is-complete");
+    this.elements.introStrings.disabled = false;
+    this.canvas.dataset.openingAwaitingGesture = "true";
+    this.canvas.dataset.openingGestureComplete = "false";
+    this.canvas.dataset.openingGestureDirection = "pending";
+    this.canvas.dataset.openingStringsPlayed = "0";
+    this.canvas.dataset.openingStringDisplacement = "0.00";
   }
 
   private updateOpeningStringMotion(dt: number): void {
@@ -840,6 +873,14 @@ export class PoemStage {
     );
     const introTransition = introExitProgress(introProgress);
     this.canvas.dataset.introTransition = introTransition.toFixed(3);
+    if (
+      introProgress <= INTRO_EXIT_START &&
+      this.openingGestureCompleted &&
+      !this.initialIntroPlaying &&
+      !this.autoPlaying
+    ) {
+      this.resetOpeningGesture();
+    }
     if (
       introProgress >= OPENING_CADENCE_TRIGGER &&
       introProgress < OPENING_CADENCE_WINDOW_END
